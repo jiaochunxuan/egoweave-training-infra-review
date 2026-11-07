@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+outputs/
+checkpoints/
+data/
+external/
+logs/
+runs/
+*.hdf5
+*.mp4
+*.npz
+*.safetensors
+*.ckpt

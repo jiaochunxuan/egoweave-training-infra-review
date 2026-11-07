@@ -1,0 +1,38 @@
+# Replace every value with a local checkpoint directory. These are logical
+# slots, not private server paths and not downloadable artifacts.
+M0:
+  pretrained: checkpoints/pi05_base/params
+  dexjoco: runs/M0/dexjoco/9999
+  dexmimicgen_A: runs/M0/dexmimicgen_A/4999
+  dexmimicgen_B: runs/M0/dexmimicgen_B/4999
+  robotwin: runs/M0/robotwin/4999
+M1:
+  pretrained: checkpoints/M1/params
+  dexjoco: runs/M1/dexjoco/9999
+  dexmimicgen_A: runs/M1/dexmimicgen_A/4999
+  dexmimicgen_B: runs/M1/dexmimicgen_B/4999
+  robotwin: runs/M1/robotwin/4999
+M2:
+  pretrained: checkpoints/M2/params
+  dexjoco: runs/M2/dexjoco/9999
+  dexmimicgen_A: runs/M2/dexmimicgen_A/4999
+  dexmimicgen_B: runs/M2/dexmimicgen_B/4999
+  robotwin: runs/M2/robotwin/4999
+M3:
+  pretrained: checkpoints/M3/params
+  dexjoco: runs/M3/dexjoco/9999
+  dexmimicgen_A: runs/M3/dexmimicgen_A/4999
+  dexmimicgen_B: runs/M3/dexmimicgen_B/4999
+  robotwin: runs/M3/robotwin/4999
+M4_smoothed:
+  pretrained: checkpoints/M4_smoothed/params
+  dexjoco: runs/M4_smoothed/dexjoco/9999
+  dexmimicgen_A: runs/M4_smoothed/dexmimicgen_A/4999
+  dexmimicgen_B: runs/M4_smoothed/dexmimicgen_B/4999
+  robotwin: runs/M4_smoothed/robotwin/4999
+M4_smoothed_off:
+  pretrained: checkpoints/M4_smoothed_off/params
+  dexjoco: runs/M4_smoothed_off/dexjoco/9999
+  dexmimicgen_A: runs/M4_smoothed_off/dexmimicgen_A/4999
+  dexmimicgen_B: runs/M4_smoothed_off/dexmimicgen_B/4999
+  robotwin: runs/M4_smoothed_off/robotwin/4999

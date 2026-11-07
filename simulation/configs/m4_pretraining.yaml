@@ -1,0 +1,31 @@
+recipe: m4_structured_153d
+representation: m4_153d_camera_head_progress_local21_v1
+state_dim: 156
+action_dim: 153
+action_horizon: 32
+sample_stride: 2
+max_token_len: 768
+normalization: mean_std
+geometry_loss:
+  enabled: true
+  kind: local21_reconstruction
+  weight: 100.0
+  left_weight: 1.0
+  right_weight: 1.0
+  left_scale: 0.09564778953790665
+  right_scale: 0.09564778953790665
+  wrist_pose_relative_to_head: true
+  wrist_position_absolute: false
+  wrist_rotation_absolute: false
+optimizer:
+  type: AdamW
+  learning_rate: 0.000025
+  warmup_steps: 20
+  seed: 42
+distributed:
+  devices: 8
+  per_device_batch_size: 32
+  global_batch_size: 256
+  workers: 24
+checkpoint_label: updates_minus_one
+initialization: pi05_base

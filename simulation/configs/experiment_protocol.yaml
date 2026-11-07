@@ -1,0 +1,54 @@
+release: egoweave-chapter4-simulation
+model: pi05
+optimizer:
+  type: AdamW
+  learning_rate: 0.00005
+  warmup_steps: 100
+  gradient_clip_norm: 1.0
+  ema_decay: 0.999
+seed: 42
+horizon: 50
+max_token_len: 640
+logging: disabled
+
+dexjoco:
+  action_dim: 22
+  state_dim: 23
+  batch_size: 32
+  workers: 16
+  devices: 4
+  updates: 10000
+  inference_checkpoint: 9999
+  tasks: [hammer_nail, pick_bucket, pinch_tongs, water_plant]
+  episodes_per_task: 50
+  variants: [M0, M1, M2, M3, M4_smoothed, M4_smoothed_off]
+
+dexmimicgen:
+  action_dim:
+    A: 24
+    B: 30
+  state_dim:
+    A: 38
+    B: 36
+  batch_size: 64
+  workers: 4
+  devices: 4
+  updates: 5000
+  inference_checkpoint: 4999
+  episodes_per_task: 50
+  variants: [M0, M1, M2, M3, M4_smoothed, M4_smoothed_off]
+  groups:
+    A: [two_arm_box_cleanup, two_arm_drawer_cleanup, two_arm_lift_tray]
+    B: [two_arm_coffee, two_arm_pouring, two_arm_can_sort_random]
+
+robotwin:
+  action_dim: 32
+  state_dim: 32
+  batch_size: 128
+  workers: 8
+  devices: 4
+  updates: 5000
+  inference_checkpoint: 4999
+  seeds_per_task: 50
+  variants: [M0, M1, M2, M3, M4_smoothed, M4_smoothed_off]
+  evaluation_tasks: [stamp_seal, turn_switch, move_can_pot, handover_block, pick_dual_bottles]
