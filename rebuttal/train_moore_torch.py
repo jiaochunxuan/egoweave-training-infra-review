@@ -17,7 +17,7 @@ import torch.distributed as dist
 import torch.distributed.checkpoint as dcp
 from torch.distributed.checkpoint.state_dict import get_state_dict
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, MixedPrecision
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, default_collate
 from safetensors import safe_open
 from safetensors.torch import load_file
 
@@ -26,7 +26,7 @@ if not hasattr(datetime, 'UTC'):
     datetime.UTC = datetime.timezone.utc
 
 from human_data import MaskAfterNormalize, PacketDataset
-from m1.protocol import EpochSampler, epoch_plan
+from m1.protocol import EpochSampler, contiguous_rank_samples, epoch_plan
 from openpi import transforms
 from openpi.models_pytorch.pi0_pytorch import PI0Pytorch
 from openpi.models_pytorch.preprocessing_pytorch import preprocess_observation_pytorch
@@ -55,13 +55,26 @@ class TrainingWindows:
         return len(self.dataset)
 
 
+def collate_without_prompt_padding(samples):
+    rgb, ids, mask, state, actions, reliability = default_collate(samples)
+    width = min(ids.shape[1], ((int(mask.sum(-1).max()) + 63) // 64) * 64)
+    return rgb, ids[:, :width], mask[:, :width], state, actions, reliability
+
+
 class StructuredPI05(PI0Pytorch):
     def _preprocess_observation(self, observation, *, train=True):
         obs = preprocess_observation_pytorch(observation, train=train, image_keys=('base_0_rgb',))
         return list(obs.images.values()), list(obs.image_masks.values()), obs.tokenized_prompt, obs.tokenized_prompt_mask, obs.state
 
+    def _apply_checkpoint(self, func, *args, **kwargs):
+        if self.config.skip_outer_checkpoint and func.__name__ == 'forward_func':
+            return func(*args, **kwargs)
+        return super()._apply_checkpoint(func, *args, **kwargs)
+
     def embed_prefix(self, images, img_masks, lang_tokens, lang_masks):
         tokens, valid, attention = super().embed_prefix(images, img_masks, lang_tokens, lang_masks)
+        if self.config.compact_padding:
+            return tokens, valid, attention
         image_tokens = tokens.shape[1] - lang_tokens.shape[1]
         # Reproduce the two masked wrist slots in the JAX attention layout.
         def pad_wrist_slots(values):
@@ -83,10 +96,11 @@ class StructuredPI05(PI0Pytorch):
         return flow.mean(), geom.mean()
 
 
-def initialize(base, interface):
+def initialize(base, interface, *, compact_padding, skip_outer_checkpoint):
     cfg = SimpleNamespace(pi05=True, action_dim=153, action_horizon=32, dtype='float32',
                           paligemma_variant='gemma_2b', action_expert_variant='gemma_300m',
-                          pytorch_compile_mode=None)
+                          pytorch_compile_mode=None, compact_padding=compact_padding,
+                          skip_outer_checkpoint=skip_outer_checkpoint)
     model = StructuredPI05(cfg)
     state = load_file(str(base))
     with np.load(interface) as init:
@@ -120,7 +134,10 @@ def main():
     parser.add_argument('--condition', choices=['no_explicit_head', 'current_head', 'no_scale'], required=True)
     for option in ('manifest', 'norm-dir', 'base', 'interface', 'output'):
         parser.add_argument(f'--{option}', type=Path, required=True)
-    parser.add_argument('--microbatch', type=int, default=4)
+    parser.add_argument('--microbatch', type=int, default=32)
+    parser.add_argument('--batch-layout', choices=['contiguous', 'interleaved'], default='contiguous')
+    parser.add_argument('--compact-padding', action='store_true')
+    parser.add_argument('--skip-outer-checkpoint', action='store_true')
     parser.add_argument('--workers', type=int, default=3)
     args = parser.parse_args()
     batch, world, seed = 256, 8, 42
@@ -136,9 +153,13 @@ def main():
         raise ValueError('Formal data provenance mismatch')
     stats = normalize.load(args.norm_dir)
     plan = epoch_plan(len(dataset), batch, 5)
-    sampler = islice(iter(EpochSampler(len(dataset), batch, seed)), rank, None, world)
+    epoch = EpochSampler(len(dataset), batch, seed)
+    sampler = contiguous_rank_samples(epoch, rank, world)
+    if args.batch_layout == 'interleaved':
+        sampler = islice(iter(epoch), rank, None, world)
     loader = DataLoader(TrainingWindows(dataset, stats), sampler=sampler, batch_size=args.microbatch,
-                        num_workers=args.workers, prefetch_factor=2 if args.workers else None)
+                        num_workers=args.workers, prefetch_factor=2 if args.workers else None,
+                        collate_fn=collate_without_prompt_padding if args.compact_padding else None)
     windows = iter(loader)
     torch.musa.set_device(rank)
     torch.manual_seed(seed + rank)
@@ -147,11 +168,14 @@ def main():
         args.output.mkdir(parents=True, exist_ok=False)
         (args.output / 'config.json').write_text(json.dumps({
             **expected, **plan, 'world_size': world, 'seed': seed, 'microbatch': args.microbatch,
+            'batch_layout': args.batch_layout, 'gradient_reduce_dtype': 'float32',
+            'compact_padding': args.compact_padding, 'skip_outer_checkpoint': args.skip_outer_checkpoint,
             'base': str(args.base), 'interface': str(args.interface),
             'torch': torch.__version__, 'torch_musa': version('torch_musa'),
         }, indent=2) + '\n')
     dist.barrier()
-    model = initialize(args.base, args.interface)
+    model = initialize(args.base, args.interface, compact_padding=args.compact_padding,
+                       skip_outer_checkpoint=args.skip_outer_checkpoint)
     model = FSDP(model, device_id=device, use_orig_params=True, mixed_precision=MixedPrecision(
         param_dtype=torch.bfloat16, reduce_dtype=torch.float32, cast_forward_inputs=False,
         cast_root_forward_inputs=False))

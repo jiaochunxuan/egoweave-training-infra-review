@@ -33,6 +33,14 @@ data, condition-specific normalization, converted base weights, and the
 seed-42 action interface. Paths in each dataset manifest must resolve on the
 execution host.
 
+The default `h100-matched` profile uses eight devices, global batch 256,
+32 consecutive windows per device, one forward/backward pass per update,
+the original token layout, and FP32 gradient reduce-scatter. It preserves
+the historical epoch sampler, learning-rate schedule, and checkpoint labels.
+OpenPI's PyTorch augmentation, random draws, and mixed-precision forward
+remain backend-specific. To try the compute optimizations with the same
+batch and reduction precision, launch with `EGOWEAVE_PROFILE=fp32-fast`.
+
 The source excerpts in `reference/` are for inspection. The full OpenPI
 runtime and experiment assets are separate inputs. Some historical JAX and
 simulator entry points also expect companion experiment directories as

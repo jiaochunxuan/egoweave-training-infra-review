@@ -45,6 +45,10 @@ eager operation and 1.15 ms for MUSA math SDPA. These are operator timings.
 
 Use the pinned Moore runtime described in the [repository README](../README.md).
 Set the environment variables checked by [the launcher](run_moore.sh).
+For the matched training configuration, use the default `h100-matched`
+profile. For padding compaction and removal of the outer checkpoint with
+FP32 gradient reduction, use `EGOWEAVE_PROFILE=fp32-fast`.
+
 Run from the repository root to generate the instrumented entry points in
 the same import scope as the training code.
 
@@ -54,17 +58,17 @@ python benchmarks/instrument_training.py \
 python benchmarks/instrument_speed_ab.py \
     rebuttal/_profile_training.py rebuttal/_profile_speed_ab.py
 EGOWEAVE_ENTRY="$PWD/rebuttal/_profile_speed_ab.py" \
-    EGOWEAVE_MICROBATCH=32 bash benchmarks/run_moore.sh no_explicit_head
+    EGOWEAVE_BATCH_LAYOUT=interleaved bash benchmarks/run_moore.sh no_explicit_head
 python benchmarks/instrument_speed_varied.py \
     rebuttal/train_moore_torch.py rebuttal/_profile_speed_varied.py
 EGOWEAVE_ENTRY="$PWD/rebuttal/_profile_speed_varied.py" \
-    EGOWEAVE_MICROBATCH=32 bash benchmarks/run_moore.sh no_explicit_head
+    EGOWEAVE_BATCH_LAYOUT=interleaved bash benchmarks/run_moore.sh no_explicit_head
 python benchmarks/sdpa_probe.py
 ```
 
 Use a fresh `EGOWEAVE_OUTPUT` directory for each run. The varied-batch check
 uses successive cached batches, the normal optimizer schedule, and the
-fast configuration for all 12 updates.
+fast configuration with BF16 gradient communication for all 12 updates.
 
 The speed comparison mutates the FSDP handle's reduction dtype between modes
 inside the diagnostic process. Set the desired dtype on `MixedPrecision`

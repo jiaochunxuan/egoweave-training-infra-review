@@ -6,6 +6,7 @@ seed, dataset order, and NumPy permutation implementation define the schedule;
 persist these along with the manifest and start_step for resumable training.
 """
 
+from itertools import islice
 from numbers import Integral
 
 import numpy as np
@@ -77,3 +78,15 @@ class EpochSampler:
         total_examples = self.total_steps * self.batch
         for position in range(max(offset, self.n), total_examples):
             yield int(permutation[(position - self.n) % self.n])
+
+
+def contiguous_rank_samples(sampler, rank, world_size):
+    """Split each global batch into consecutive, equal rank-local batches."""
+    if not 0 <= rank < world_size or sampler.batch % world_size:
+        raise ValueError("Expected an even batch split and a valid rank")
+    rank_size = sampler.batch // world_size
+    start = rank * rank_size
+    indices = iter(sampler)
+    for _ in range(len(sampler) // sampler.batch):
+        batch = list(islice(indices, sampler.batch))
+        yield from batch[start:start + rank_size]

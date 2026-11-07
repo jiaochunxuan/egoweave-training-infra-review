@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 import protocol
+from m1.protocol import EpochSampler, contiguous_rank_samples
 
 class ProtocolTests(unittest.TestCase):
     def test_exact_native_budgets(self):
@@ -15,6 +16,14 @@ class ProtocolTests(unittest.TestCase):
     def test_epoch_sampler_pads_only_at_end(self):
         a=list(protocol.EpochSampler(10,4,123,3));self.assertEqual(len(a),12)
         self.assertEqual(len(set(a[:10])),10);self.assertEqual(a[10:],a[:2])
+    def test_h100_rank_split_reconstructs_each_global_batch(self):
+        sampler = EpochSampler(513, 256, 42)
+        expected = list(sampler)
+        ranks = [list(contiguous_rank_samples(sampler, rank, 8)) for rank in range(8)]
+        self.assertTrue(all(len(rank) == 96 for rank in ranks))
+        for step in range(3):
+            global_batch = [sample for rank in ranks for sample in rank[step * 32:(step + 1) * 32]]
+            self.assertEqual(global_batch, expected[step * 256:(step + 1) * 256])
     def test_two_epoch_real_budget(self):
         self.assertEqual(protocol.real_steps(110848),6928)
         with self.assertRaises(ValueError):protocol.real_steps(10)
