@@ -12,6 +12,7 @@ job split each device's 32 windows into eight microbatches of four.
 | Remove the masked wrist slots and trim trailing prompt padding | 6.04 | Same input, seed, weights, and objective |
 | Also remove the outer transformer checkpoint | 5.41 | Per-layer checkpointing is active |
 | Also reduce-scatter gradients in BF16 | 3.69 | FP32 optimizer state and geometric objective |
+| Fast configuration with successive real batches | 3.63 | Median of 11 updates after the first |
 
 The four controlled configurations replay a fixed real batch of 256 windows
 with the same random seed and learning rate set to zero. The first repetition
@@ -19,6 +20,13 @@ of each mode is excluded. The measured prompt tensor was trimmed from 768
 to 640 on rank zero. The baseline and compact modes produced a total loss of
 2.96250 and 2.96243 and a gradient norm of 2.55071 and 2.55821, respectively.
 These checks characterize short-run numerical behavior.
+
+The successive-batch check completed 12 optimizer updates with the original
+learning-rate schedule. Post-startup updates took 3.61–3.77 seconds. Peak
+allocated and reserved memory were 26.60 and 39.14 GiB per device. The median
+projects to 18.55 hours for 18,400 updates, plus checkpoint time. The check
+covers the head-supervision ablation. Full-run and downstream equivalence
+with BF16 gradient communication remain to be validated.
 
 With microbatch 4, the profiler observed eight parameter all-gathers taking
 about 5.57 seconds per update. Microbatch 32 reduced this to one all-gather
@@ -28,9 +36,9 @@ reduce-scatter input from 14.47 GB to 7.23 GB and its timing from about
 end-to-end update timing.
 
 The isolated attention probe used BF16 tensors, grouped-query attention, a
-prefix/action mask, and head dimension 256. MUSA selected its math SDPA path
-and reported that FlashAttention does not support this head dimension on
-the tested build. The synthetic forward/backward median was 1.84 ms for the
+prefix/action mask, and head dimension 256. The tested MUSA build selected
+its math SDPA path for this head dimension. The synthetic
+forward/backward median was 1.84 ms for the
 eager operation and 1.15 ms for MUSA math SDPA. These are operator timings.
 
 ## Running the checks
