@@ -47,8 +47,16 @@ python benchmarks/instrument_speed_ab.py \
     rebuttal/_profile_training.py rebuttal/_profile_speed_ab.py
 EGOWEAVE_ENTRY="$PWD/rebuttal/_profile_speed_ab.py" \
     EGOWEAVE_MICROBATCH=32 bash benchmarks/run_moore.sh no_explicit_head
+python benchmarks/instrument_speed_varied.py \
+    rebuttal/train_moore_torch.py rebuttal/_profile_speed_varied.py
+EGOWEAVE_ENTRY="$PWD/rebuttal/_profile_speed_varied.py" \
+    EGOWEAVE_MICROBATCH=32 bash benchmarks/run_moore.sh no_explicit_head
 python benchmarks/sdpa_probe.py
 ```
+
+Use a fresh `EGOWEAVE_OUTPUT` directory for each run. The varied-batch check
+uses successive cached batches, the normal optimizer schedule, and the
+fast configuration for all 12 updates.
 
 The speed comparison mutates the FSDP handle's reduction dtype between modes
 inside the diagnostic process. Set the desired dtype on `MixedPrecision`
